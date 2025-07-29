@@ -1,0 +1,865 @@
+```{r}
+
+library(dplyr)
+
+
+input_dir <- "C:/0"
+output_dir <- "C:1"
+
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir)
+}
+
+
+file_list <- list.files(input_dir, pattern = "*.txt", full.names = TRUE)
+
+
+for (input_file in file_list) {
+  cat("Processing file:", input_file, "\n")
+  
+  
+  tryCatch({
+  
+    data <- read.table(input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE, 
+                       fill = TRUE, quote = "", comment.char = "")
+    
+    if (!"AAChange.refGene" %in% colnames(data)) {
+      cat("Column 'AAChange.refGene' not found in file:", input_file, "\n")
+      next
+    }
+    
+    filtered_data <- data %>%
+      filter(AAChange.refGene != "0")
+    
+    if (nrow(filtered_data) == 0) {
+      cat("No rows remaining after filtering for file:", input_file, "\n")
+      next
+    }
+    
+    
+    
+    output_file <- file.path(output_dir, basename(input_file))
+    write.table(filtered_data, output_file, sep = "\t", row.names = FALSE, quote = FALSE)
+    View(filtered_data)
+    cat("Filtered file saved successfully to:", output_file, "\n")
+  }, error = function(e) {
+    cat("Error processing file:", input_file, "\n")
+    cat("Error message:", e$message, "\n")
+  })
+}
+
+```
+
+
+
+```{r}
+input_dir <- "C:/1"  # Input directory
+output_dir <- "C:/2"  # Output directory
+
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir)
+}
+
+file_list <- list.files(input_dir, pattern = "*.txt", full.names = TRUE)
+
+cat("Input directory:", input_dir, "\n")
+cat("Files found:", paste(file_list, collapse = ", "), "\n")
+
+if (length(file_list) == 0) {
+  stop("No files found in the input directory. Please ensure the files are present and match the naming pattern.")
+}
+
+for (file_path in file_list) {
+  cat("Processing file:", file_path, "\n")
+  
+  data <- read.table(file_path, sep = "\t", header = TRUE, stringsAsFactors = FALSE, 
+                     fill = TRUE, quote = "", comment.char = "")
+  colnames(data)
+
+  column_counts <- apply(data, 1, function(row) sum(!is.na(row)))
+  inconsistent_rows <- which(column_counts != max(column_counts))
+  if (length(inconsistent_rows) > 0) {
+    cat("Removing rows with inconsistent column counts:", inconsistent_rows, "\n")
+    data <- data[column_counts == max(column_counts), ]
+  }
+  
+  filtered_data <- data[data$ExonicFunc.refGene %in% c("frameshift deletion", "nonsynonymous SNV",
+                                                       "nonframeshift deletion", "stoploss",
+                                                       "nonframeshift insertion", "startloss", 
+                                                       "stopgain", "frameshift insertion"), ]
+  
+  refgen_data <- filtered_data[filtered_data$Func.refGene %in% c("exonic", "ncRNA_exonic",
+                                                                 "splicing", "exonic;splicing", 
+                                                                 "intergenic"), ]
+  
+  classify_maf <- function(maf) {
+    if (is.na(maf)) {
+      return(NA)
+    } else if (maf >= 0.1 & maf <= 5) {
+      return("BS2")
+    } else if (maf >= 0 & maf < 0.1) {
+      return("PM2")
+    } else if (maf > 5) {
+      return("BA1")
+    } else {
+      return(NA)
+    }
+  }
+  
+  exac_all_col <- 13
+  exac_sas_col <- 20
+  g1000_col <- 34
+  esp_col <- 33
+  
+  refgen_data$ExAC_ALL_AF <- sapply(refgen_data[[exac_all_col]], classify_maf)
+  refgen_data$ExAC_SAS_AF <- sapply(refgen_data[[exac_sas_col]], classify_maf)
+  refgen_data$g1000_AF <- sapply(refgen_data[[g1000_col]], classify_maf)
+  refgen_data$esp_AF <- sapply(refgen_data[[esp_col]], classify_maf)
+  
+  
+  columns_to_move <- c(
+    "ExAC_ALL", "ExAC_ALL_AF",
+    "ExAC_SAS", "ExAC_SAS_AF",       
+    "esp6500siv2_all", "esp_AF",   
+    "X1000g2015aug_all", "g1000_AF"
+  )
+  
+  new_order <- c(
+    columns_to_move,                      
+    setdiff(colnames(refgen_data), columns_to_move)  
+  )
+  
+  reordered_data <- refgen_data[, new_order]
+  
+  af_columns <- c("ExAC_ALL_AF", "ExAC_SAS_AF", "esp_AF", "g1000_AF")
+  
+  reordered_data$AF_Inconsistency <- NA
+  
+  for (i in 1:nrow(reordered_data)) {
+    af_values <- reordered_data[i, af_columns]
+    non_na_values <- af_values[!is.na(af_values)]
+    
+    if (length(unique(non_na_values)) > 1) {
+      reordered_data$AF_Inconsistency[i] <- paste(
+        "Inconsistent:", 
+        paste(names(af_values), "=", af_values, collapse = ", ")
+      )
+    } else {
+      reordered_data$AF_Inconsistency[i] <- "Consistent"
+    }
+  }
+  
+  columns_to_move <- ("AF_Inconsistency")
+  new_order <- c(
+    columns_to_move,                      
+    setdiff(colnames(reordered_data), columns_to_move)  
+  )
+  
+  reordered <- reordered_data[, new_order]
+  
+  sample_name <- tools::file_path_sans_ext(basename(file_path))  
+  output_file <- file.path(output_dir, paste0(sample_name, "_final.txt"))
+  
+  write.table(reordered, output_file, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+  
+  cat("Processed and saved:", output_file, "\n")
+}
+
+cat("All samples processed successfully!\n")
+colnames()
+```
+
+
+
+
+```{r}
+input_dir <- "C:/2"
+output_dir <- "C:/3"
+
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir)
+}
+
+file_list <- list.files(input_dir, pattern = "*.txt", full.names = TRUE)
+
+cat("Files found in input directory:\n")
+print(file_list)
+cat("Total number of files:", length(file_list), "\n")
+
+for (input_file in file_list) {
+  cat("Processing file:", input_file, "\n")
+  
+  tryCatch({
+    data <- read.table(input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE, 
+                       fill = TRUE, quote = "", comment.char = "")
+    
+    metrics_to_move <- c(
+      "SIFT_score", 
+      "SIFT_pred",
+      "SIFT4G_score",
+      "Polyphen2_HDIV_score", 
+      "Polyphen2_HVAR_score",
+      "LRT_score", 
+      "LRT_pred",
+      "MutationTaster_pred",
+      "FATHMM_pred",
+      "MetaRNN_score",
+      "REVEL_score",
+      "PROVEAN_score",
+      "DEOGEN2_pred",
+      "M.CAP_score",
+      "CADD_phred"
+    )
+    
+    available_columns <- intersect(metrics_to_move, colnames(data))
+    new_order <- c(available_columns, setdiff(colnames(data), available_columns))
+    reordered_data <- data[, new_order]
+    
+    classify_sift <- function(sif) {
+      if (is.na(sif)) {
+        return(NA)
+      } else if (sif <= 0.05) {
+        return("PP3")
+      } else {
+        return("BP4")
+      }
+    }
+    
+    classify_sift_pred <- function(pred) {
+      if (is.na(pred)) {
+        return(NA)
+      } else if (pred == "D") {
+        return("PP3")
+      } else if (pred == "T") {
+        return("BP4")
+      } else {
+        return(NA)
+      }
+    }
+    
+    classify_sift_4g <- function(s4g) {
+      if (is.na(s4g)) {
+        return(NA)
+      } else if (s4g <= 0.05) {
+        return("PP3")
+      } else if (s4g > 0.05) {
+        return("BP4")
+      } else {
+        return(NA)
+      }
+    }
+    
+    classify_polyphen2_hdiv <- function(pp2) {
+      if (is.na(pp2)) {
+        return(NA)
+      } else if (pp2 >= 0.907) {
+        return("PP3")
+      } else {
+        return("BP4")
+      }
+    }
+    
+    classify_polyphen2_hvar <- function(pp2) {
+      if (is.na(pp2)) {
+        return(NA)
+      } else if (pp2 >= 0.917) {
+        return("PP3")
+      } else {
+        return("BP4")
+      }
+    }
+    
+    classify_lrt <- function(lrt) {
+      if (is.na(lrt)) {
+        return(NA)
+      } else if (lrt < 0.001) {
+        return("PP3")
+      } else if (lrt > 0.1) {
+        return("BP4")
+      } else {
+        return(NA)
+      }
+    }
+    
+    classify_lrt_pred <- function(lrt_pred) {
+      if (is.na(lrt_pred)) {
+        return(NA)
+      } else if (lrt_pred == "D") { # D = Deleterious
+        return("PP3")
+      } else if (lrt_pred == "N") { # N = Neutral
+        return("BP4")
+      } else {
+        return(NA)
+      }
+    }
+    
+    classify_mutationtaster <- function(mt) {
+      if (is.na(mt)) {
+        return(NA)
+      } else if (mt %in% c("A", "D")) {
+        return("PP3")
+      } else if (mt %in% c("N", "P")) {
+        return("BP4")
+      } else {
+        return(NA)
+      }
+    }
+    
+    classify_fathmm <- function(fathmm) {
+      if (is.na(fathmm)) {
+        return(NA)
+      } else if (fathmm == "D") {
+        return("PP3")
+      } else if (fathmm == "T") {
+        return("BP4")
+      } else {
+        return(NA)
+      }
+    }
+    
+    classify_metarnn <- function(metarnn_pred) {
+      if (is.na(metarnn_pred)) {
+        return(NA)
+      } else if (metarnn_pred >= 0.7) { # D = Deleterious
+        return("PP3")
+      } else if (metarnn_pred <= 0.3) { # T = Tolerated
+        return("BP4")
+      } else {
+        return(NA)
+      }
+    }
+    
+    classify_revel <- function(revel) {
+      if (is.na(revel)) {
+        return(NA)
+      } else if (revel >= 0.7) {
+        return("PP3")
+      } else {
+        return("BP4")
+      }
+    }
+    
+    classify_provean <- function(provean) {
+      if (is.na(provean)) {
+        return(NA)
+      } else if (provean <= -2.5) {
+        return("PP3")
+      } else {
+        return("BP4")
+      }
+    }
+    
+    classify_deogen2 <- function(deogen2) {
+      if (is.na(deogen2)) {
+        return(NA)
+      } else if (deogen2 == "D") {
+        return("PP3")
+      } else if (deogen2 == "T") {
+        return("BP4")
+      } else {
+        return(NA)
+      }
+    }
+    
+    classify_mcap <- function(mcap_score) {
+      if (is.na(mcap_score)) {
+        return(NA)
+      } else if (mcap_score >= 0.025) { # Threshold for pathogenicity
+        return("PP3")
+      } else {
+        return("BP4")
+      }
+    }
+    
+    classify_cadd_phred <- function(cadd) {
+      if (is.na(cadd)) {
+        return(NA)
+      } else if (cadd >= 30) {
+        return("PP3")
+      } else {
+        return("BP4")
+      }
+    }
+    
+    reordered_data$SIFT_score_AF <- sapply(reordered_data$SIFT_score, classify_sift)
+    reordered_data$SIFT_pred_AF <- sapply(reordered_data$SIFT_pred, classify_sift_pred)
+    reordered_data$SIFT4G_AF <- sapply(reordered_data$SIFT4G_score, classify_sift_4g)
+    reordered_data$Polyphen2_HDIV_score_AF <- sapply(reordered_data$Polyphen2_HDIV_score, classify_polyphen2_hdiv)
+    reordered_data$Polyphen2_HVAR_score_AF <- sapply(reordered_data$Polyphen2_HVAR_score, classify_polyphen2_hvar)
+    reordered_data$LRT_score_AF <- sapply(reordered_data$LRT_score, classify_lrt)
+    reordered_data$LRT_pred_AF <- sapply(reordered_data$LRT_pred, classify_lrt_pred)
+    reordered_data$MutationTaster_pred_AF <- sapply(reordered_data$MutationTaster_pred, classify_mutationtaster)
+    reordered_data$FATHMM_pred_AF <- sapply(reordered_data$FATHMM_pred, classify_fathmm)
+    reordered_data$PROVEAN_score_AF <- sapply(reordered_data$PROVEAN_score, classify_provean)
+    reordered_data$DEOGEN2_pred_AF <- sapply(reordered_data$DEOGEN2_pred, classify_deogen2)
+    reordered_data$CADD_phred_AF <- sapply(reordered_data$CADD_phred, classify_cadd_phred)
+    reordered_data$REVEL_score_AF <- sapply(reordered_data$REVEL_score, classify_revel)
+    reordered_data$M.CAP_score_AF <- sapply(reordered_data$M.CAP_score, classify_mcap)
+    reordered_data$MetaRNN_score_AF <- sapply(reordered_data$MetaRNN_score, classify_metarnn)
+    
+    classification_columns <- c(
+      "SIFT_score_AF", "SIFT_pred_AF", "SIFT4G_AF", "Polyphen2_HDIV_score_AF", "Polyphen2_HVAR_score_AF", 
+      "LRT_score_AF", "LRT_pred_AF", "MutationTaster_pred_AF", "FATHMM_pred_AF", "PROVEAN_score_AF", 
+      "DEOGEN2_pred_AF", "CADD_phred_AF", "REVEL_score_AF", "M.CAP_score_AF", "MetaRNN_score_AF"
+    )
+    
+    missing_columns <- setdiff(classification_columns, colnames(reordered_data))
+    if (length(missing_columns) > 0) {
+      cat("Warning: Missing classification columns in file:", input_file, "\n")
+      cat("Missing columns:", paste(missing_columns, collapse = ", "), "\n")
+      
+      for (col in missing_columns) {
+        reordered_data[[col]] <- NA
+      }
+    }
+    
+    classify_variant <- function(row) {
+      bp4_count <- sum(row == "BP4", na.rm = TRUE)
+      pp3_count <- sum(row == "PP3", na.rm = TRUE)
+      
+      if (pp3_count >= 12) {
+        return("PP3")
+      } else if (bp4_count >= 12) {
+        return("BP4")
+      } else {
+        return(NA)
+      }
+    }
+    
+    classification_results <- apply(reordered_data[, classification_columns], 1, classify_variant)
+    
+    cat("Number of classification results:", length(classification_results), "\n")
+    if (length(classification_results) != nrow(reordered_data)) {
+      cat("Error: Classification results do not match the number of rows in the dataset.\n")
+      next  
+    }
+    
+    reordered_data$Variant_Classification <- classification_results
+    
+    hdata <- reordered_data[, c(ncol(reordered_data), 1:(ncol(reordered_data) - 1))]
+    
+    file_name <- basename(input_file) # Extract the file name
+    output_file <- file.path(output_dir, paste0("processed_", file_name))
+    write.table(hdata, output_file, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+    
+    cat("Saved processed file:", output_file, "\n")
+  }, error = function(e) {
+    cat("Error processing file:", input_file, "\n")
+    cat("Error message:", e$message, "\n")
+  })
+}
+
+cat("All files processed successfully.\n")
+
+
+
+```
+
+
+```{r}
+
+
+input_dir <- "C:/3"
+output_dir <- "C:/4"
+
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir)
+}
+
+file_list <- list.files(input_dir, pattern = "*.txt", full.names = TRUE)
+
+cat("Files found in input directory:\n")
+print(file_list)
+cat("Total number of files:", length(file_list), "\n")
+
+for (input_file in file_list) {
+  cat("Processing file:", input_file, "\n")
+  
+  tryCatch({
+    data <- read.table(input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE, 
+                       fill = TRUE, quote = "", comment.char = "")
+     data <- cbind(Pfam = NA, data)
+
+required_columns <- c("Aloft_pred", "Aloft_Confidence", "Otherinfo1")
+    if (!all(required_columns %in% colnames(data))) {
+      stop("One or more required columns (Aloft_pred, Aloft_Confidence, Otherinfo1) are missing from the dataset.")
+    }
+
+    data$Aloft_pred <- sapply(strsplit(data$Aloft_pred, ";"), function(x) {
+      filtered <- x[x != "."]
+      if (length(filtered) > 0) {
+        return(filtered[1])
+      } else {
+        return(NA)
+      }
+    })
+
+    data$Aloft_Confidence <- sapply(strsplit(data$Aloft_Confidence, ";"), function(x) {
+      filtered <- x[x != "."]
+      if (length(filtered) > 0) {
+        return(filtered[1])
+      } else {
+        return(NA)
+      }
+    })
+
+    classify_aloft <- function(pred, confidence, otherinfo1) {
+      if (is.na(pred) || is.na(confidence) || is.na(otherinfo1)) {
+        return(NA)
+      }
+      
+      if (pred == "Dominant" && confidence == "High") {
+        return("PSV1")
+      }
+      
+      if (pred == "Recessive" && confidence == "High" && otherinfo1 == "hom") {
+        return("PVS1")
+      }
+      
+      return(NA)
+    }
+
+    data$aloft_scores <- mapply(classify_aloft, data$Aloft_pred, data$Aloft_Confidence, data$Otherinfo1)
+
+    new_column_order <- c("aloft_scores", "Aloft_pred", "Aloft_Confidence", "Otherinfo1", 
+                          setdiff(colnames(data), c("aloft_scores", "Aloft_pred", "Aloft_Confidence", "Otherinfo1")))
+
+    wedata <- data[, new_column_order]
+
+     output_file <- file.path(output_dir, paste0("psv1_",basename (input_file)))
+    write.table(wedata, output_file, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+
+    cat("Output file saved successfully to:", output_file, "\n")
+  }, error = function(e) {
+    cat("Error processing file:", input_file, "\n")
+    cat("Error message:", e$message, "\n")
+  })
+}
+
+
+```
+
+
+
+```{r}
+input_dir <- "C:/4"
+
+file_list <- list.files(input_dir, pattern = "*.txt", full.names = TRUE)
+
+results <- data.frame(Sample = character(),
+                      Gene = character(),
+                      AminoAcidModification = character(),
+                      stringsAsFactors = FALSE)
+
+for (input_file in file_list) {
+  cat("Processing file:", input_file, "\n")
+  
+  tryCatch({
+    data <- read.table(input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE, 
+                       fill = TRUE, quote = "", comment.char = "")
+    
+    required_columns <- c("Variant_Classification", "Gene.refGene", "AAChange.refGene")
+    if (!all(required_columns %in% colnames(data))) {
+      stop("One or more required columns (Variant_Classification, Gene.refGene, AAChange.refGene) are missing from the dataset.")
+    }
+    
+    pp3_variants <- subset(data, Variant_Classification == "PP3")
+    
+    pp3_variants$Gene <- pp3_variants$Gene.refGene
+    pp3_variants$AminoAcidModification <- sapply(strsplit(as.character(pp3_variants$AAChange.refGene), ":"), function(x) {
+      aa_change <- x[grep("^p\\.", x)]
+      if (length(aa_change) > 0) {
+        return(gsub("^p\\.", "", aa_change))
+      } else {
+        return(NA)
+      }
+    })
+    
+ 
+    pp3_variants$Sample <- sample_name
+    
+    results <- rbind(results, pp3_variants[, c("Sample", "Gene", "AminoAcidModification")])
+  }, error = function(e) {
+    cat("Error processing file:", input_file, "\n")
+    cat("Error message:", e$message, "\n")
+  })
+}
+
+cat("\nFinal Results:\n")
+print(results)
+
+if (requireNamespace("knitr", quietly = TRUE)) {
+  library(knitr)
+  cat("\nFormatted Table:\n")
+  print(knitr::kable(results, format = "simple"))
+}
+```
+
+##copy and paste the output to an excel sheet and tidy them. 
+
+```{r}
+input_file <- "C:/ix.txt"  # Path to the input .txt file
+output_file <- "C:/Users/X.txt"  # Path to save the updated file
+
+data <- read.table(input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+
+if ("Sample" %in% colnames(data)) {
+  data$Sample <- gsub(" ", "_", data$Sample)  # Replace spaces with underscores
+} else {
+  stop("The 'Sample' column does not exist in the input file.")
+}
+
+write.table(data, output_file, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+
+cat("Updated file saved successfully to:", output_file, "\n")
+```
+
+## pick the genes from UniprotKB and then the Pfam identification from InterPro, refill the Pfam data back to the sheet and reintegrate back to the datasets
+
+```{r}
+input_dir <- "C:/4"  # Directory containing the 83 input files
+output_dir <- "C:/5"  # Directory to save updated files
+excel_file <- "C:/X.xlsx"  # Path to the reference Excel file
+
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir)
+}
+
+library(readxl)
+reference_data <- read_excel(excel_file)
+
+file_list <- list.files(input_dir, pattern = "*.txt", full.names = TRUE)
+
+for (input_file in file_list) {
+  cat("Processing file:", input_file, "\n")
+  
+  tryCatch({
+    data <- read.table(input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE, 
+                       fill = TRUE, quote = "", comment.char = "")
+    
+    file_name <- basename(input_file)
+    sample_id <- gsub("\\..*$", "", file_name)  # Remove everything after the first dot (e.g., "processed_CC01_S1")
+    sample_id <- gsub("^processed_", "", sample_id)  # Remove the "processed_" prefix if it exists
+    
+    sample_data <- subset(reference_data, Sample == sample_id)
+    
+    if (nrow(sample_data) == 0) {
+      cat("No matching data found in the Excel file for sample:", sample_id, "\n")
+      next
+    }
+    
+    if ("Pfam" %in% colnames(data)) {
+      data$Pfam <- sapply(data$Gene.refGene, function(gene) {
+        pfam_value <- sample_data$Pfam[sample_data$Gene.refGene == gene]
+        if (length(pfam_value) > 0) {
+          return(pfam_value[1])  # Take the first match if multiple exist
+        } else {
+          return(NA)  # No match found
+        }
+      })
+    } else {
+      data$Pfam <- sapply(data$Gene.refGene, function(gene) {
+        pfam_value <- sample_data$Pfam[sample_data$Gene.refGene == gene]
+        if (length(pfam_value) > 0) {
+          return(pfam_value[1])  # Take the first match if multiple exist
+        } else {
+          return(NA)  # No match found
+        }
+      })
+    }
+    
+    output_file <- file.path(output_dir, file_name)
+    write.table(data, output_file, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+    
+    cat("Output file saved successfully to:", output_file, "\n")
+  }, error = function(e) {
+    cat("Error processing file:", input_file, "\n")
+    cat("Error message:", e$message, "\n")
+  })
+}
+```
+
+##Pre assigning ACMG Para
+
+```{r}
+input_dir <- "C:/5"  # Directory containing the 83 input files
+output_dir <- "C:/6"  # Directory to save updated files
+
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir)
+}
+
+file_list <- list.files(input_dir, pattern = "*.txt", full.names = TRUE)
+
+for (input_file in file_list) {
+  cat("Processing file:", input_file, "\n")
+  
+  tryCatch({
+    data <- read.table(input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE, 
+                       fill = TRUE, quote = "", comment.char = "")
+    
+    colnames(data) <- trimws(colnames(data))
+    
+    af_columns <- c("ExAC_ALL_AF", "ExAC_SAS_AF", "esp_AF", "g1000_AF")
+    missing_columns <- setdiff(af_columns, colnames(data))
+    if (length(missing_columns) > 0) {
+      cat("Missing AF columns in file:", input_file, ":", paste(missing_columns, collapse = ", "), "\n")
+      next
+    }
+    
+    data$AFS_Para <- apply(data[, af_columns], 1, function(row) {
+      pm2_count <- sum(row == "PM2", na.rm = TRUE)
+      bs2_count <- sum(row == "BS1", na.rm = TRUE)
+      na_count <- sum(is.na(row))
+      
+      if (pm2_count >= 3) {
+        return("PM2")
+      } else if (bs2_count >= 3) {
+        return("BS1")
+      } else if (na_count >= 3) {
+        return(NA)
+      } else if (pm2_count == 2 && bs2_count == 2) {
+        return("PM2")
+      } else {
+        return(NA)
+      }
+    })
+    
+    data <- data[, c("AFS_Para", setdiff(colnames(data), "AFS_Para"))]
+    
+    
+    file_name <- basename(input_file)
+    output_file <- file.path(output_dir, file_name)
+    write.table(data, output_file, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+    
+    cat("Output file saved successfully to:", output_file, "\n")
+  }, error = function(e) {
+    cat("Error processing file:", input_file, "\n")
+    cat("Error message:", e$message, "\n")
+  })
+}
+
+```
+
+## Assign ACMG parameters
+
+```{r}
+input_dir <- "C:/7"  # Directory containing the 83 input files
+output_dir <- "C:/8"  # Directory to save updated files
+
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir)
+}
+
+file_list <- list.files(input_dir, pattern = "*.txt", full.names = TRUE)
+
+
+for (input_file in file_list) {
+  cat("Processing file:", input_file, "\n")
+  
+  
+  tryCatch({
+    data <- read.table(input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE, 
+                       fill = TRUE, quote = "", comment.char = "")
+    
+    
+    colnames(data) <- trimws(colnames(data))
+    
+    
+    required_columns <- c("AFS_Para", "Lit", "Pfam", "Variant_Classification")
+    missing_columns <- setdiff(required_columns, colnames(data))
+    if (length(missing_columns) > 0) {
+      cat("Missing required columns in file:", input_file, ":", paste(missing_columns, collapse = ", "), "\n")
+      next
+    }
+    
+    data$A_CMG <- apply(data[, required_columns], 1, function(row) {
+      afs_para <- row["AFS_Para"]
+      lit <- row["Lit"]
+      pfam <- row["Pfam"]
+      var_class <- row["Variant_Classification"]
+      
+      if (all(is.na(row))) {
+        return(NA)
+      }
+      
+      if (!is.na(afs_para) && afs_para == "BS1" && is.na(lit) && is.na(pfam) && !is.na(var_class) && var_class == "BP4") {
+        return("Likely Benign (I)")
+      }
+      
+      if (!is.na(afs_para) && afs_para == "BS1" && is.na(lit) && is.na(pfam) && is.na(var_class)) {
+        return("VUS")
+      }
+      
+      if (!is.na(afs_para) && afs_para == "BS1" && !is.na(lit) && grepl("PS1|PS3", lit) && !is.na(pfam) && pfam == "PM1" && !is.na(var_class) && var_class == "BP4") {
+        return("VUS (I)")
+      }
+      
+      if (!is.na(afs_para) && afs_para == "PM2" && is.na(lit) && is.na(pfam) && is.na(var_class)) {
+        return("VUS")
+      }
+      
+      if (!is.na(afs_para) && afs_para == "PM2" && is.na(lit) && is.na(pfam) && !is.na(var_class) && var_class == "BP4") {
+        return("VUS")
+      }
+      
+      if (!is.na(afs_para) && afs_para == "PM2" && is.na(lit) && is.na(pfam) && !is.na(var_class) && var_class == "PP3") {
+        return("VUS")
+      }
+      
+      if (!is.na(afs_para) && afs_para == "PM2" && !is.na(lit) && lit == "PS1" && !is.na(pfam) && pfam == "PM1" && !is.na(var_class) && var_class == "PP3") {
+        return("Likely Pathogenic (II)")
+      }
+      
+      if (!is.na(afs_para) && afs_para == "BS1" && is.na(lit) && !is.na(pfam) && pfam == "PM1" && !is.na(var_class) && var_class == "BP4") {
+        return("Likely Benign (I)")
+      }
+      
+      if (is.na(afs_para) && is.na(lit) && !is.na(pfam) && pfam == "PM1" && !is.na(var_class) && var_class == "PP3") {
+        return("VUS")
+      }
+      
+      if (is.na(afs_para) && !is.na(lit) && lit == "BS3" && !is.na(pfam) && pfam == "PM1" && !is.na(var_class) && var_class == "PP3") {
+        return("VUS")
+      }
+      
+      
+      if (is.na(afs_para) && !is.na(lit) && grepl("PS1|PS3", lit) && !is.na(pfam) && pfam == "PM1" && !is.na(var_class) && var_class == "PP3") {
+        return("Pathogenic (II)")
+      }
+      
+      if (is.na(afs_para) && !is.na(lit) && lit == "PS1" && !is.na(pfam) && pfam == "PM1" && !is.na(var_class) && var_class == "PP2") {
+        return("Likely Pathogenic (II)")
+      }
+      
+      
+      if (is.na(afs_para) && !is.na(lit) && grepl("PS3|PS4|PM5", lit) && !is.na(pfam) && pfam == "PM1" && !is.na(var_class) && var_class == "PP3") {
+        return("Pathogenic (II)")
+      }
+      
+      
+      if (!is.na(afs_para) && afs_para == "PM2" && !is.na(lit) && lit == "BS4" && is.na(pfam) && !is.na(var_class) && var_class == "PP3") {
+        return("VUS")
+      }
+      
+      
+      if (!is.na(afs_para) && afs_para == "PM2" && !is.na(lit) && lit == "PM5" && !is.na(pfam) && pfam == "PM1" && !is.na(var_class) && var_class == "PP3") {
+        return("Likely Pathogenic (IV)")
+      }
+      
+      return(NA)
+    })
+    
+    data <- data[, c("A_CMG", setdiff(colnames(data), "A_CMG"))]
+    
+    file_name <- basename(input_file)
+    output_file <- file.path(output_dir, file_name)
+    write.table(data, output_file, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+    
+    cat("Output file saved successfully to:", output_file, "\n")
+  }, error = function(e) {
+    cat("Error processing file:", input_file, "\n")
+    cat("Error message:", e$message, "\n")
+  })
+}
+```
