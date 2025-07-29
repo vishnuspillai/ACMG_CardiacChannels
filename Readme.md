@@ -1,208 +1,254 @@
-Variant Annotation and ACMG Classification Pipeline
-
-This repository contains a pipeline for processing variant annotation files, performing ACMG-based classification, and extracting specific gene data for downstream analysis. The scripts are implemented in R and are designed to efficiently handle multiple input files.
+\# 🧬 Variant Annotation and ACMG Classification Pipeline
 
 
 
-Table of Contents
-
-1. Overview
-
-2\. File Structure
-
-3\. Prerequisites
-
-4\. Scripts and Workflow
-
-5\. How to Run the Scripts
-
-6\. Output Files
-
-7\. Contributing
-
-8\. License
-
-9\. Overview
-
-The pipeline processes variant annotation files (e.g., .txt or .multianno.txt) to:
+This repository contains a pipeline for processing variant annotation files, performing ACMG-based classification, and extracting specific gene data for downstream analysis. The scripts are implemented in \*\*R\*\* and designed to efficiently handle multiple input files with a modular structure.
 
 
 
-Perform allele frequency consistency checks and classify variants using ACMG criteria.
+\## 📑 Table of Contents
 
-Extract specific genes from the dataset based on user-defined lists.
+1\. Overview  
 
-Consolidate results into a single Excel sheet for further analysis.
+2\. File Structure  
 
-The workflow is modular, allowing flexibility for customization and integration with other pipelines.
+3\. Prerequisites  
+
+4\. Scripts and Workflow  
+
+5\. How to Run the Scripts  
+
+6\. Output Files  
+
+7\. Contributing  
+
+8\. License  
 
 
 
-File Structure
+\## 🔍 Overview
+
+The pipeline processes variant annotation files (e.g., `.txt`, `.multianno.txt`) to:
+
+\- Perform allele frequency consistency checks and classify variants using ACMG guidelines.
+
+\- Extract specific genes from the dataset based on user-defined gene lists.
+
+\- Consolidate results into a single Excel sheet for downstream analysis.
 
 
+
+The workflow is \*\*modular and customizable\*\*, enabling seamless integration with other pipelines.
+
+
+
+\## 📁 File Structure
+
+```
 
 ├── README.md                     # This file
 
 ├── Scripts/
 
-│   ├── add\_AFS\_Para.R            # Adds the AFS\_Para column based on allele frequency parameters
+│   ├── add\_AFS\_Para.R            # Adds AFS\_Para column based on population AF rules
 
-│   ├── reorder\_columns.R         # Reorders columns to bring key fields to the front
+│   ├── reorder\_columns.R         # Brings key columns to the front
 
-│   ├── assign\_A\_CMG.R            # Assigns ACMG classifications based on rules
+│   ├── assign\_A\_CMG.R            # Classifies variants based on ACMG criteria
 
-│   ├── extract\_genes.R           # Extracts specific genes and consolidates results
+│   ├── extract\_genes.R           # Filters specific genes and consolidates results
 
 ├── Data/
 
-│   ├── Input/                    # Directory for input files (variant annotation files)
+│   ├── Input/                    # Directory for input variant files
 
-│   ├── Output/                   # Directory for processed output files
+│   ├── Output/                   # Directory for processed outputs
 
-├── Lit.parameters\_acmg\_83\_wes\_feb.xlsx  # Reference Excel file for gene-specific annotations
+├── Lit.parameters\_acmg\_83\_wes\_feb.xlsx  # Reference file for gene-specific rules
 
+```
 
 
-Prerequisites
 
-Software Requirements
+\## ⚙️ Prerequisites
 
-1. R (version 4.0 or higher): Install R from https://www.r-project.org/ .
 
-2\. RStudio (optional but recommended): Install from https://www.rstudio.com/ .
 
-R Packages
+\### Software
 
-Install the following R packages if not already installed:
+\- \[R (≥ v4.0)](https://www.r-project.org/)
 
+\- \[RStudio](https://www.rstudio.com/) \*(optional but recommended)\*
 
 
 
+\### R Packages
 
-install.packages("readxl")    # For reading Excel files
+Install the following packages:
 
-install.packages("openxlsx")  # For writing Excel files
+```r
 
+install.packages("readxl")
 
+install.packages("openxlsx")
 
-Input Files
+```
 
-Place all input files in the Data/Input/ directory.
 
-Ensure the reference Excel file (Lit.parameters\_acmg\_83\_wes\_feb.xlsx) is in the root directory.
 
+\## 🔄 Scripts and Workflow
 
 
-Scripts and Workflow
 
-1\. Add AFS\_Para Column
+\### 1. 🧬 Add AFS\_Para Column  
 
-&nbsp;	Script: add\_AFS\_Para.R
+\*\*Script\*\*: `add\_AFS\_Para.R`  
 
-&nbsp;	Purpose: Adds the AFS\_Para column based on allele frequency parameters (ExAC\_ALL\_AF, ExAC\_SAS\_AF, esp\_AF, g1000\_AF).
+Adds ACMG classification based on allele frequency (`ExAC\_ALL`, `SAS`, `ESP`, `1000g`).  
 
-&nbsp;	Logic:
+\*\*Logic:\*\*
 
-&nbsp;	If 3 or more parameters are PM2, assign PM2.
+\- ≥3 AFs = PM2 → assign PM2  
 
-&nbsp;	If 3 or more parameters are BS2, assign BS2.
+\- ≥3 AFs = BS2 → assign BS2  
 
-&nbsp;	If 3 or more parameters are NA, assign NA.
+\- ≥3 AFs = NA → assign NA  
 
-&nbsp;	If 2 parameters are PM2 and 2 are BS2, assign PM2.
+\- Mixed → resolve as PM2 by default  
 
-2\. Reorder Columns
 
-&nbsp;	Script: reorder\_columns.R
 
-&nbsp;	Purpose: Moves key columns (AFS\_Para, Lit, Pfam, Variant\_Classification, ExonicFunc.refGene, AAChange.refGene) to the front for better readability.
+\### 2. 📑 Reorder Columns  
 
-3\. Assign ACMG Classifications
+\*\*Script\*\*: `reorder\_columns.R`  
 
-&nbsp;	Script: assign\_A\_CMG.R
+Moves important columns (`AFS\_Para`, `Lit`, `Pfam`, `Variant\_Classification`, etc.) to the front.
 
-&nbsp;	Purpose: Assigns ACMG classifications (A\_CMG) based on predefined rules involving AFS\_Para, Lit, Pfam, and Variant\_Classification.
 
-4\. Extract Specific Genes
 
-&nbsp;	Script: extract\_genes.R
+\### 3. ⚖️ Assign ACMG Classifications  
 
-&nbsp;	Purpose: Filters rows containing specific genes (from AAChange.refGene) and consolidates the results into a single Excel file.
+\*\*Script\*\*: `assign\_A\_CMG.R`  
 
-&nbsp;	Key Columns in Output:
+Applies ACMG rules using multiple columns (AFS\_Para, Pfam, Lit, Variant\_Classification) to assign final labels:  
 
-&nbsp;		Sample: Sample name extracted from the file name.
+\- `Pathogenic`  
 
-&nbsp;		A\_CMG: ACMG classification.
+\- `Likely Pathogenic`  
 
-&nbsp;		AAChange.refGene: Amino acid change information.
+\- `VUS`  
 
-&nbsp;		ExonicFunc.refGene: Functional annotation of the variant.
+\- `Likely Benign`  
 
-&nbsp;		Gene: Extracted gene name.
+\- `NA`
 
-How to Run the Scripts
 
-Step 1: Prepare Input Files
 
-&nbsp;	Place all input files in the Data/Input/ directory.
+\### 4. 🔍 Extract Specific Genes  
 
-&nbsp;	Ensure the reference Excel file (Lit.parameters\_acmg\_83\_wes\_feb.xlsx) is in the root directory.
+\*\*Script\*\*: `extract\_genes.R`  
 
-Step 2: Run the Scripts
+Filters specific genes based on `AAChange.refGene`, extracts information, and consolidates it into a master Excel file.
 
-&nbsp;	Open R or RStudio.
 
-&nbsp;	Set the working directory to the root folder of this repository:
 
-&nbsp;	setwd("path/to/your/repo")
+\*\*Key Columns:\*\*
 
-&nbsp;	Run the scripts in the following order:
+\- `Sample`
 
+\- `A\_CMG`
 
+\- `AAChange.refGene`
 
-&nbsp;	source("Scripts/add\_AFS\_Para.R")
+\- `ExonicFunc.refGene`
 
-&nbsp;	source("Scripts/reorder\_columns.R")
+\- `Gene`
 
-&nbsp;	source("Scripts/assign\_A\_CMG.R")
 
-&nbsp;	source("Scripts/extract\_genes.R")
 
-Step 3: Check Output
+\## 🚀 How to Run the Scripts
 
-&nbsp;	Processed files will be saved in the Data/Output/ directory.
 
-&nbsp;	The consolidated gene extraction results will be saved as Extracted\_Genes.xlsx.
 
-Output Files
+\### Step 1: Prepare Input  
 
-Processed Files:
+\- Place your annotated `.txt` or `.multianno.txt` files in: `Data/Input/`  
 
-&nbsp;	Each input file is processed and saved in the Data/Output/ directory with updated columns (AFS\_Para, A\_CMG, etc.).
+\- Ensure `Lit.parameters\_acmg\_83\_wes\_feb.xlsx` is in the project root  
 
-Consolidated Gene Extraction:
 
-&nbsp;	A single Excel file (Extracted\_Genes.xlsx) containing:
 
-&nbsp;		Sample: Sample name.
+\### Step 2: Run Scripts in Order
 
-&nbsp;		A\_CMG: ACMG classification.
+```r
 
-&nbsp;		AAChange.refGene: Amino acid change information.
+setwd("path/to/your/project")
 
-&nbsp;		ExonicFunc.refGene: Functional annotation of the variant.
+source("Scripts/add\_AFS\_Para.R")
 
-&nbsp;		Gene: Extracted gene name.
+source("Scripts/reorder\_columns.R")
 
-Contributing
+source("Scripts/assign\_A\_CMG.R")
 
-Contributions are welcome! If you have suggestions for improvements or encounter any issues, please open an issue or submit a pull request.
+source("Scripts/extract\_genes.R")
 
+```
 
 
-License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+\### Step 3: Review Output  
+
+\- Processed files → `Data/Output/`  
+
+\- Consolidated results → `Extracted\_Genes.xlsx`
+
+
+
+\## 📤 Output Files
+
+
+
+\### ✅ Processed Variant Files
+
+Each input file is saved with:
+
+\- Updated `AFS\_Para` column
+
+\- Final ACMG classification (`A\_CMG`)
+
+
+
+\### ✅ Gene Extraction
+
+Single Excel file:
+
+\- `Extracted\_Genes.xlsx`  
+
+\- Includes gene-specific filtered variants with annotations
+
+
+
+\## 🤝 Contributing
+
+Pull requests and suggestions are welcome!  
+
+If you find bugs or have improvement ideas, feel free to \[open an issue](https://github.com/your-repo/issues).
+
+
+
+\## 📜 License
+
+This project is licensed under the \*\*MIT License\*\*.  
+
+See the `LICENSE` file for full terms.
+
+
+
+---
+
+
+
+\*Built with ❤️ for variant interpretation workflows.\*
+
+
 
